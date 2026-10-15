@@ -58,6 +58,7 @@ const FUEL_THRUST=0.5, FUEL_FLY=0.18, FUEL_DIG=0.22, FUEL_IDLE=0.015, DIG_BASE=0
 const FUEL_PRICE=1.5, REPAIR_PRICE=5;
 const SAVE_KEY='fatherload-save-v1';
 const T={EMPTY:0,DIRT:1,ROCK:2,LAVA:3,GAS:4,BEDROCK:5};
+const LAIR_TOP=ROWS-14, LAIR_BOT=ROWS-3, LAIR_C0=4, LAIR_C1=35;
 const ORE0=10;
 const ORES=[
   {name:'Ironium',   value:30,     weight:10,  color:'#c9937a', from:0,   rar:1},
@@ -133,6 +134,8 @@ const SFX={
   nope:()=>beep(200,.12,'square',.04,120),
   buy:()=>beep(600,.1,'triangle',.06,900),
   tele:()=>beep(300,.5,'sine',.06,1500),
+  fire:()=>beep(420,.25,'sawtooth',.05,120),
+  roar:()=>beep(70,.9,'sawtooth',.14,35),
 };
 
 // ---------------------------------------------------------------- world
@@ -180,6 +183,10 @@ function genWorld(){
       if(getT(c+dc,r+dr)===T.DIRT) setT(c+dc,r+dr,t);
     }
   }
+  // the Devil's lair at the bottom
+  for(let r=LAIR_TOP;r<=LAIR_BOT;r++)for(let c=LAIR_C0;c<=LAIR_C1;c++) setT(c,r,T.EMPTY);
+  for(let r=LAIR_TOP;r<=LAIR_BOT;r++){setT(LAIR_C0-1,r,T.BEDROCK);setT(LAIR_C1+1,r,T.BEDROCK);}
+  for(let c=LAIR_C0;c<=LAIR_C1;c++) if(c%4===1) setT(c,ROWS-2,T.LAVA);
 }
 function encodeWorld(){let s='';for(let i=0;i<world.length;i++)s+=String.fromCharCode(65+world[i]);return s;}
 function decodeWorld(s){world=new Uint8Array(COLS*ROWS);for(let i=0;i<world.length&&i<s.length;i++)world[i]=s.charCodeAt(i)-65;}
@@ -284,7 +291,7 @@ function newPlayer(){
     fuel:UPG.tank.vals[0],hull:UPG.hull.vals[0],money:20,cargo:[],
     inv:{fuel:0,nano:0,dyn:0,c4:0,tele:0,trans:0},
     lv:{drill:0,hull:0,engine:0,tank:0,rad:0,cargo:0},
-    maxDepth:0,won:false,shopLock:null,earned:0};
+    maxDepth:0,won:false,shopLock:null,earned:0,bossHp:null,bossDead:false};
 }
 const lv=k=>UPG[k].vals[P.lv[k]];
 const cargoWeight=()=>P.cargo.reduce((s,i)=>s+ORES[i].weight,0);
@@ -301,6 +308,7 @@ function burst(x,y,n,color,speed=180){for(let i=0;i<n;i++){const a=rnd(0,Math.PI
 function startGame(fresh){
   gameOver=false; paused=false; floats.length=0; parts.length=0; rocks.length=0;
   if(fresh||!loadGame()){ genWorld(); P=newPlayer(); }
+  boss=newBoss(); shots.length=0;
   for(let r=ROWS-2;r>=0;r--)for(let c=0;c<COLS;c++) checkSupport(c,r);
   running=true; closeModal();
 }
@@ -379,6 +387,106 @@ function updateRocks(dt){
 }
 const rockAbove=(c0,c1,top)=>rocks.find(k=>k.c>=c0&&k.c<=c1&&k.t>=.25&&k.y+TILE<=top+1&&k.y+TILE>top-20);
 
+// ---------------------------------------------------------------- the Devil (end boss)
+let boss=null, shots=[];
+const BOSS_HP=200, BOSS_BONUS=1000000;
+function newBoss(){return {x:(LAIR_C0+LAIR_C1+1)/2*TILE,y:(LAIR_TOP+5)*TILE,vx:0,vy:0,hp:P.bossHp==null?BOSS_HP:P.bossHp,maxHp:BOSS_HP,state:P.bossDead?'dead':'sleep',t:0,shotT:2.5,chargeT:7,contactT:0,face:1,flash:0};}
+const bossActive=()=>boss&&boss.state!=='dead'&&boss.state!=='sleep';
+function updateBoss(dt){
+  const b=boss; if(!b||b.state==='dead') return;
+  b.t+=dt; b.flash=Math.max(0,b.flash-dt);
+  if(b.state==='sleep'){
+    if(podRow()>=LAIR_TOP-1&&P.state==='free'){
+      b.state='awake'; b.t=0; SFX.roar(); shake=16;
+      openInfo('The Fatherload is guarded',`A huge horned figure rises from the lava at the bottom of the pit.<br><i>"So, another little digger has come for my Fatherload. You will burn like the others!"</i><br><br>Dodge his fireballs and charges. Hurt him with <b>Dynamite</b> / <b>Plastic Explosives</b> detonated close to him (keys 3 / 4), or ram him with your drill. Kill him to claim the Fatherload.`,'Fight!');
+    }
+    return;
+  }
+  const dx=P.x-b.x, dy=P.y-b.y;
+  if(b.state!=='charge') b.face=dx<0?-1:1;
+  if(b.state==='awake'){
+    const tx=clamp(P.x+Math.sin(b.t*.7)*140,(LAIR_C0+1)*TILE,LAIR_C1*TILE), ty=clamp(P.y-100+Math.sin(b.t*1.3)*40,(LAIR_TOP+1)*TILE+10,(LAIR_BOT-1)*TILE);
+    b.vx=lerp(b.vx,clamp((tx-b.x)*1.5,-170,170),dt*2.5); b.vy=lerp(b.vy,clamp((ty-b.y)*1.5,-170,170),dt*2.5);
+    b.shotT-=dt;
+    if(b.shotT<=0&&b.t>1.5){
+      b.shotT=b.hp<b.maxHp/2?rnd(1,1.8):rnd(1.6,2.6);
+      const n=b.hp<b.maxHp/2?3:1, a0=Math.atan2(dy,dx-b.face*18);
+      for(let i=0;i<n;i++){const a=a0+(i-(n-1)/2)*.25; shots.push({x:b.x+b.face*18,y:b.y-10,vx:Math.cos(a)*270,vy:Math.sin(a)*270,t:0});}
+      SFX.fire();
+    }
+    b.chargeT-=dt; if(b.chargeT<=0){b.state='windup'; b.t=0; b.vx*=.2; b.vy*=.2;}
+  } else if(b.state==='windup'){
+    if(b.t>.7){ b.state='charge'; b.t=0; const a=Math.atan2(dy,dx); b.vx=Math.cos(a)*560; b.vy=Math.sin(a)*560; SFX.roar(); }
+  } else if(b.state==='charge'){
+    if(b.t>.75){ b.state='awake'; b.t=2; b.chargeT=rnd(4,7); b.vx*=.2; b.vy*=.2; }
+  }
+  b.x=clamp(b.x+b.vx*dt,LAIR_C0*TILE+30,(LAIR_C1+1)*TILE-30); b.y=clamp(b.y+b.vy*dt,LAIR_TOP*TILE+40,(LAIR_BOT+1)*TILE-40);
+  // contact with the pod
+  if(Math.abs(dx)<24+HS&&Math.abs(dy)<34+HS){
+    b.contactT-=dt;
+    if(b.contactT<=0){
+      b.contactT=.5;
+      const pushing=(kd('ArrowLeft','a','A','q','Q')&&dx>0)||(kd('ArrowRight','d','D')&&dx<0)||(kd('ArrowDown','s','S')&&dy<0)||(kd('ArrowUp','w','W','z','Z',' ')&&dy>0);
+      if(pushing) hitBoss(5+4*P.lv.drill);
+      damage(b.state==='charge'?8:3,'the Devil');
+      P.vx+=Math.sign(dx||1)*260; P.vy-=120; if(b.state==='charge'){b.state='awake'; b.t=2; b.chargeT=rnd(4,7); b.vx*=-.3; b.vy*=-.3;}
+    }
+  } else b.contactT=0;
+  // fireballs
+  for(let i=shots.length-1;i>=0;i--){
+    const s=shots[i]; s.t+=dt; s.x+=s.vx*dt; s.y+=s.vy*dt;
+    if(Math.abs(s.x-P.x)<HS+5&&Math.abs(s.y-P.y)<HS+5){ damage(Math.round(6*(1-lv('rad')/200)),'fireball'); burst(s.x,s.y,15,'#ff7a1a',200); shots.splice(i,1); continue; }
+    if(s.t>4||solid(Math.floor(s.x/TILE),Math.floor(s.y/TILE))){ burst(s.x,s.y,10,'#ff7a1a',150); shots.splice(i,1); continue; }
+    if(Math.random()<.6) parts.push({x:s.x,y:s.y,vx:rnd(-20,20),vy:rnd(-30,0),t:0,life:.35,color:'#ffae42',size:rnd(3,6),smoke:true});
+  }
+}
+function hitBoss(n){
+  const b=boss; if(!bossActive()) return;
+  b.hp=Math.max(0,b.hp-n); b.flash=.25; P.bossHp=b.hp;
+  addFloat(`-${n}`,'#ffae42',b.x,b.y-56); burst(b.x,b.y,15,'#ff3b3b',200); SFX.hurt();
+  if(b.hp<=0) killBoss();
+}
+function killBoss(){
+  const b=boss; b.state='dead'; P.bossDead=true; P.won=true; shots.length=0;
+  shake=24; SFX.boom(); burst(b.x,b.y,120,'#ff3b3b',420); burst(b.x,b.y,80,'#ffae42',320); burst(b.x,b.y,60,'#3cf0c8',260);
+  P.money+=BOSS_BONUS; P.earned+=BOSS_BONUS; saveGame();
+  openPanel(`<h2>VICTORY</h2><p class="sub">The Devil dissolves into smoke — and there it is: the Fatherload, a seam of pure Amazonite as big as a house. You are rich beyond counting, and the first digger ever to come back up alive.</p>
+    <div><span class="stat">Fatherload bonus ${fmtMoney(BOSS_BONUS)}</span><span class="stat">Total earned ${fmtMoney(P.earned)}</span><span class="stat">Max depth ${P.maxDepth*10} ft</span></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button id="b-keep">Keep playing</button><button id="b-new" class="sec">New game</button></div>`);
+  bind('b-keep',closeModal); bind('b-new',()=>startGame(true));
+}
+function drawBoss(){
+  const b=boss; if(!b||b.state==='dead'||b.state==='sleep') return;
+  const sx=b.x-camX, sy=b.y-camY; if(sx<-100||sx>VW+100||sy<-120||sy>VH+120) return;
+  const k=Math.min(1,b.t/.8), flap=Math.sin(time*7)*.5, red=b.flash>0?'#ff9a9a':'#b3261e', dark=b.flash>0?'#ffcccc':'#73120d';
+  ctx.save(); ctx.translate(sx,sy); ctx.scale(b.face*(b.state==='awake'&&b.t<.8?k:1),b.state==='awake'&&b.t<.8?k:1);
+  if(b.state==='windup'){ctx.fillStyle=`rgba(255,80,30,${.25+.2*Math.sin(time*30)})`; ctx.beginPath(); ctx.arc(0,0,60,0,7); ctx.fill();}
+  // wings
+  ctx.fillStyle=dark;
+  for(const s of [-1,1]){ctx.save(); ctx.scale(s,1); ctx.beginPath(); ctx.moveTo(10,-12); ctx.quadraticCurveTo(45,-45-flap*30,78,-22-flap*44); ctx.lineTo(66,-2-flap*22); ctx.lineTo(56,8-flap*10); ctx.lineTo(44,12); ctx.quadraticCurveTo(26,4,10,10); ctx.closePath(); ctx.fill(); ctx.restore();}
+  // tail
+  const tw=Math.sin(time*3)*10;
+  ctx.strokeStyle=red; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-10,26); ctx.quadraticCurveTo(-42,44+tw,-48,16+tw); ctx.stroke();
+  ctx.fillStyle=red; ctx.beginPath(); ctx.moveTo(-54,22+tw); ctx.lineTo(-42,20+tw); ctx.lineTo(-48,8+tw); ctx.closePath(); ctx.fill();
+  // legs & hooves
+  ctx.fillStyle=dark; ctx.fillRect(-15,22,9,18); ctx.fillRect(6,22,9,18); ctx.fillStyle='#111'; ctx.fillRect(-16,38,11,5); ctx.fillRect(5,38,11,5);
+  // body
+  ctx.fillStyle=red; ctx.beginPath(); ctx.ellipse(0,8,21,27,0,0,7); ctx.fill();
+  ctx.fillStyle=dark; ctx.beginPath(); ctx.ellipse(0,12,11,16,0,0,7); ctx.fill();
+  ctx.fillStyle=red; ctx.fillRect(-5,-2,10,3); ctx.fillRect(-5,6,10,3); ctx.fillRect(-5,14,10,3);
+  // arm + trident
+  ctx.strokeStyle=red; ctx.lineWidth=8; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(14,-2); ctx.lineTo(28,12); ctx.stroke();
+  ctx.strokeStyle='#ccd'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(30,34); ctx.lineTo(30,-44); ctx.moveTo(20,-44); ctx.lineTo(40,-44); ctx.moveTo(20,-44); ctx.lineTo(20,-58); ctx.moveTo(30,-44); ctx.lineTo(30,-62); ctx.moveTo(40,-44); ctx.lineTo(40,-58); ctx.stroke();
+  // head, horns, face
+  ctx.fillStyle=red; ctx.beginPath(); ctx.ellipse(0,-27,13,14,0,0,7); ctx.fill();
+  ctx.fillStyle='#f3e4b0'; for(const s of [-1,1]){ctx.beginPath(); ctx.moveTo(s*7,-36); ctx.lineTo(s*19,-58); ctx.lineTo(s*13,-33); ctx.closePath(); ctx.fill();}
+  ctx.fillStyle='#ffe34d'; ctx.shadowColor='#ffb000'; ctx.shadowBlur=8; ctx.fillRect(2,-31,6,3); ctx.fillRect(-8,-31,6,3); ctx.shadowBlur=0;
+  ctx.fillStyle='#000'; ctx.fillRect(-7,-20,14,4); ctx.fillStyle='#fff'; ctx.fillRect(-6,-20,2,2); ctx.fillRect(-1,-20,2,2); ctx.fillRect(4,-20,2,2);
+  ctx.fillStyle='#222'; ctx.beginPath(); ctx.moveTo(-5,-40); ctx.lineTo(0,-50); ctx.lineTo(5,-40); ctx.closePath(); ctx.fill(); // goatee-ish tuft
+  ctx.restore();
+  shots.forEach(s=>{const x=s.x-camX,y=s.y-camY; ctx.fillStyle='rgba(255,120,30,.5)'; ctx.beginPath(); ctx.arc(x,y,11,0,7); ctx.fill(); ctx.fillStyle='#ff7a1a'; ctx.beginPath(); ctx.arc(x,y,7,0,7); ctx.fill(); ctx.fillStyle='#ffe34d'; ctx.beginPath(); ctx.arc(x,y,3.5,0,7); ctx.fill();});
+}
+
 // ---------------------------------------------------------------- digging
 function tryDig(c,r,dir){
   const t=getT(c,r);
@@ -407,7 +515,6 @@ function finishDig(){
   } else if(t===T.GAS){
     burst(tx,ty,40,'#9cff9c',320); SFX.boom(); damage(8,'gas explosion');
   }
-  if(r>=ROWS-3&&!P.won){P.won=true; openInfo('You reached the core!',`At ${r*10} ft you have struck the Fatherload itself. There is nothing deeper. Collect your fortune and retire — or keep digging for sport.`);}
 }
 function explode(radius){
   const c=podCol(), r=podRow();
@@ -419,6 +526,7 @@ function explode(radius){
   for(let dc=-radius;dc<=radius;dc++) checkSupport(c+dc,r-radius-1);
   shake=12; SFX.boom(); burst(P.x,P.y,60,'#ffae42',380); burst(P.x,P.y,30,'#777',260);
   if(lostOre) addFloat(`${lostOre} mineral${lostOre>1?'s':''} destroyed`,'#ffb347');
+  if(bossActive()&&Math.hypot(boss.x-P.x,boss.y-P.y)<(radius+1.6)*TILE) hitBoss(radius===1?30:70);
 }
 
 // ---------------------------------------------------------------- items
@@ -714,9 +822,10 @@ function render(){
   if(camY<0){ drawSurfaceDecor(); BUILDINGS.forEach(drawBuilding); }
   // particles
   parts.forEach(p=>{ctx.globalAlpha=1-p.t/p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x-camX-p.size/2,p.y-camY-p.size/2,p.size,p.size);}); ctx.globalAlpha=1;
+  drawBoss();
   drawPod(P.x-camX,P.y-camY);
   // darkness
-  const dark=clamp((podRow()-15)/160,0,.92);
+  const dark=podRow()>=LAIR_TOP-1?.3:clamp((podRow()-15)/160,0,.92);
   if(dark>0){
     const g=ctx.createRadialGradient(P.x-camX,P.y-camY,50,P.x-camX,P.y-camY,330);
     g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(.5,`rgba(0,0,0,${dark*.5})`); g.addColorStop(1,`rgba(0,0,0,${dark})`);
@@ -748,6 +857,7 @@ function drawHUD(){
     ctx.fillStyle='#eee'; ctx.font='12px system-ui,Arial';
     owned.forEach((it,i)=>ctx.fillText(`[${ITEMS.indexOf(it)+1}] ${it.name} × ${P.inv[it.key]}`,VW-190,24+i*17));
   }
+  if(bossActive()) bar(VW/2-150,8,300,20,boss.hp/boss.maxHp,'#c0392b',`THE DEVIL  ${boss.hp} / ${boss.maxHp}`);
   if(muted){ctx.fillStyle='#aaa';ctx.font='12px system-ui,Arial';ctx.textAlign='right';ctx.fillText('muted (M)',VW-14,VH-10);ctx.textAlign='left';}
   if(P.fuel<lv('tank')*.2&&podRow()>0&&Math.floor(time*2)%2===0){ctx.fillStyle='#ff5555';ctx.font='bold 16px system-ui,Arial';ctx.textAlign='center';ctx.fillText('LOW FUEL',VW/2,34);ctx.textAlign='left';}
   ctx.restore();
@@ -758,7 +868,7 @@ let last=performance.now();
 function frame(now){
   const dt=Math.min(.05,(now-last)/1000); last=now; time+=dt;
   if(running&&!paused){
-    update(dt); if(!gameOver) updateRocks(dt);
+    update(dt); if(!gameOver){updateRocks(dt); updateBoss(dt);}
     shake=Math.max(0,shake-dt*40); hintT-=dt;
     for(let i=floats.length-1;i>=0;i--){floats[i].t+=dt; if(floats[i].t>1.6) floats.splice(i,1);}
     for(let i=parts.length-1;i>=0;i--){const p=parts[i]; p.t+=dt; if(!p.smoke) p.vy+=600*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; if(p.t>p.life) parts.splice(i,1);}
@@ -788,7 +898,7 @@ document.querySelectorAll('#touch button').forEach(b=>{
   b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off); b.addEventListener('pointercancel',off); b.addEventListener('pointerleave',off);
 });
 
-window.FL={get P(){return P;},getT,setT,T,ORE0,rocks,checkSupport,save:saveGame,load:loadGame,explode,useItem,openShop:id=>openShop(BUILDINGS.find(b=>b.id===id))};
+window.FL={get P(){return P;},get boss(){return boss;},shots,hitBoss,LAIR_TOP,getT,setT,T,ORE0,rocks,checkSupport,save:saveGame,load:loadGame,explode,useItem,openShop:id=>openShop(BUILDINGS.find(b=>b.id===id))};
 buildTextures();
 openTitle();
 requestAnimationFrame(frame);

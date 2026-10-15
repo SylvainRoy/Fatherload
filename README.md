@@ -35,3 +35,7 @@ On touch devices an on-screen D-pad and item buttons appear.
 ## Development
 
 Everything lives in `index.html`. A small debug hook is exposed as `window.FL` in the console (`FL.P` is the player state, `FL.setT(col,row,tile)` edits the world, `FL.openShop('upg')` opens a shop, etc.).
+
+## The end
+
+At the very bottom of the pit lies the Devil's lair. Break into it and he wakes: he hurls fireballs (three at a time once wounded) and charges at your pod. Hurt him with Dynamite / Plastic Explosives detonated close to him, or ram him with your drill (better drills hit harder). Kill him to claim the Fatherload — a $1,000,000 bonus and the victory screen.
