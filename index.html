@@ -441,13 +441,13 @@ function update(dt){
 }
 
 // ---------------------------------------------------------------- shops
-function openPanel(html){panel.innerHTML=html; modal.classList.add('open'); paused=true; for(const k in keys)keys[k]=false;}
-function closeModal(){modal.classList.remove('open'); paused=false;}
+function openPanel(html){panel.innerHTML=html; modal.classList.add('open'); paused=true; shopSpace=null; for(const k in keys)keys[k]=false;}
+function closeModal(){modal.classList.remove('open'); paused=false; shopSpace=null;}
 function bind(id,fn){const el=document.getElementById(id); if(el) el.onclick=fn;}
 function openInfo(title,text,btn='Continue'){openPanel(`<h2>${title}</h2><p class="sub">${text}</p><button id="b-close" class="close">${btn}</button>`); bind('b-close',closeModal);}
 function statusBar(){return `<div><span class="stat">Money ${fmtMoney(P.money)}</span><span class="stat">Fuel ${P.fuel.toFixed(1)}/${lv('tank')} L</span><span class="stat">Hull ${P.hull}/${lv('hull')}</span><span class="stat">Cargo ${cargoWeight()}/${lv('cargo')} kg</span></div>`;}
 function openShop(b){
-  saveGame();
+  saveGame(); spaceAction=null;
   const r=[`<h2 style="color:${b.color}">${b.name}</h2>`];
   const rows=[];
   if(b.id==='fuel'){
@@ -458,12 +458,14 @@ function openShop(b){
       rows.push({l:label,s:`${fmtMoney(price)}`,dis:a<=0.01||P.money<price,fn:()=>{P.fuel+=a;P.money-=price;SFX.buy();}});
     });
     if(need>0.01&&P.money<need*FUEL_PRICE&&P.money>0){const a=Math.floor(P.money/FUEL_PRICE*10)/10;if(a>0)rows.push({l:`All I can afford (${a} L)`,s:fmtMoney(a*FUEL_PRICE),fn:()=>{P.fuel+=a;P.money-=a*FUEL_PRICE;SFX.buy();}});}
+    spaceAction={label:'fill the tank',fn:()=>{const a=Math.min(lv('tank')-P.fuel,Math.floor(P.money/FUEL_PRICE*10)/10); if(a<=0.01) return false; P.fuel+=a;P.money-=a*FUEL_PRICE;SFX.buy();return true;}};
   } else if(b.id==='sell'){
     r.push('<p class="sub">We buy any mineral you bring up, at market price.</p>');
     const counts={}; P.cargo.forEach(i=>counts[i]=(counts[i]||0)+1);
     if(!P.cargo.length) r.push('<p class="sub"><i>Your cargo bay is empty.</i></p>');
     Object.keys(counts).map(Number).sort((a,b)=>a-b).forEach(i=>r.push(`<div class="row"><div class="l"><span style="color:${ORES[i].color}">■</span> ${ORES[i].name} × ${counts[i]}</div><div>${fmtMoney(ORES[i].value*counts[i])}</div></div>`));
     rows.push({l:'<b>Sell everything</b>',s:fmtMoney(cargoValue()),dis:!P.cargo.length,fn:()=>sellCargo()});
+    spaceAction={label:'sell everything',fn:()=>{if(!P.cargo.length) return false; sellCargo(); return true;}};
   } else if(b.id==='junk'){
     r.push('<p class="sub">Odds and ends. Use with keys <kbd>1</kbd>–<kbd>6</kbd> while mining.</p>');
     ITEMS.forEach((it,i)=>rows.push({l:`<b>${i+1}. ${it.name}</b> <span style="color:#9a9">(owned: ${P.inv[it.key]})</span><small>${it.desc}</small>`,s:fmtMoney(it.price),dis:P.money<it.price,fn:()=>{P.money-=it.price;P.inv[it.key]++;SFX.buy();}}));
@@ -485,10 +487,12 @@ function openShop(b){
   }
   r.push(statusBar());
   rows.forEach((row,i)=>r.push(`<div class="row"><div class="l">${row.l}</div><button id="r${i}" ${row.dis?'disabled':''}>${row.s}</button></div>`));
-  r.push('<button id="b-close" class="close sec">Leave (Esc)</button>');
+  r.push(`<button id="b-close" class="close sec">Leave (Esc / Space)</button>`);
+  if(spaceAction) r.push(`<p class="sub" style="text-align:center;margin:8px 0 0"><kbd>Space</kbd> ${spaceAction.label}, then <kbd>Space</kbd> again to leave</p>`);
   openPanel(r.join(''));
   rows.forEach((row,i)=>bind('r'+i,()=>{row.fn();saveGame();openShop(b);}));
-  bind('b-close',()=>{closeModal();});
+  const act=spaceAction; bind('b-close',()=>{closeModal();});
+  shopSpace=()=>{ if(act&&act.fn()){saveGame();openShop(b);} else closeModal(); };
 }
 function openTitle(){
   openPanel(`<h2>FATHERLOAD</h2><p class="sub">A homage to the classic mining game. Dig for minerals, sell them on the surface, upgrade your pod and reach the core — without running out of fuel or wrecking your hull.</p>
@@ -506,7 +510,7 @@ function openTitle(){
 }
 
 // ---------------------------------------------------------------- render
-let camX=0, camY=0, time=0;
+let camX=0, camY=0, time=0, spaceAction=null, shopSpace=null;
 function drawPod(sx,sy){
   const d=P.state==='dig'?P.dig.dir:null;
   ctx.save(); ctx.translate(sx,sy);
@@ -622,6 +626,7 @@ window.addEventListener('keydown',e=>{
   if(e.repeat&&!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) return;
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
   if(e.key==='Escape'){ if(modal.classList.contains('open')&&running) closeModal(); return; }
+  if(e.key===' '&&modal.classList.contains('open')&&running&&shopSpace){ shopSpace(); return; }
   if(paused||!running) return;
   keys[e.key]=true;
   if(e.key>='1'&&e.key<='6') useItem(ITEMS[+e.key-1].key);
