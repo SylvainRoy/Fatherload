@@ -382,7 +382,7 @@ function moveY(dy){
   const c0=Math.floor((P.x-HS)/TILE), c1=Math.floor((P.x+HS-1)/TILE);
   let landed=false;
   if(ny-HS<-SKY_ROWS*TILE){ny=-SKY_ROWS*TILE+HS; if(P.vy<0)P.vy=0;}
-  if(dy>0){const r=Math.floor((ny+HS-1)/TILE); for(let c=c0;c<=c1;c++) if(solid(c,r)){ny=r*TILE-HS;landed=true;break;}}
+  if(dy>0){const r=Math.floor((ny+HS)/TILE); for(let c=c0;c<=c1;c++) if(solid(c,r)){ny=r*TILE-HS;landed=true;break;}}
   else if(dy<0){const r=Math.floor((ny-HS)/TILE); for(let c=c0;c<=c1;c++) if(solid(c,r)){ny=(r+1)*TILE+HS;P.vy=0;break;}}
   P.y=ny;
   const rb=Math.floor((P.y+HS)/TILE);
