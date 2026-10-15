@@ -550,6 +550,7 @@ function openShop(b){
     [[Math.min(10,need),'Repair 10 HP'],[need,'Full repair ('+need+' HP)']].forEach(([a,label])=>{
       rows.push({l:label,s:fmtMoney(a*REPAIR_PRICE),dis:a<=0||P.money<a*REPAIR_PRICE,fn:()=>{P.hull+=a;P.money-=a*REPAIR_PRICE;SFX.buy();}});
     });
+    spaceAction={label:'repair the hull',fn:()=>{const a=Math.min(need,Math.floor(P.money/REPAIR_PRICE)); if(a<=0) return false; P.hull+=a;P.money-=a*REPAIR_PRICE;SFX.buy();return true;}};
     if(need>0&&P.money<need*REPAIR_PRICE){const a=Math.floor(P.money/REPAIR_PRICE);if(a>0&&a<10)rows.push({l:`Repair ${a} HP (all you can afford)`,s:fmtMoney(a*REPAIR_PRICE),fn:()=>{P.hull+=a;P.money-=a*REPAIR_PRICE;SFX.buy();}});}
   } else if(b.id==='upg'){
     r.push('<p class="sub">Better gear lets you dig deeper, faster and safer. Your game is saved every time you enter a shop.</p>');
