@@ -255,6 +255,7 @@ const cargoValue=()=>P.cargo.reduce((s,i)=>s+ORES[i].value,0);
 const podCol=()=>clamp(Math.floor(P.x/TILE),0,COLS-1);
 const podRow=()=>Math.floor((P.y+HS-1)/TILE);
 const depthFt=()=>Math.max(0,podRow())*10;
+const onSurface=()=>P.y+HS<=0;
 
 function addFloat(text,color='#fff',x=P.x,y=P.y-24){floats.push({x,y,text,color,t:0});}
 function hint(text,color='#ffd'){ if(hintT>0&&lastHint===text) return false; lastHint=text; hintT=1.2; addFloat(text,color); return true; }
@@ -294,7 +295,8 @@ function useFuel(n){
   P.fuel=Math.max(0,P.fuel-n);
   if(P.fuel<=0){
     if(P.inv.fuel>0){useItem('fuel',true);}
-    else endGame('Your pod ran out of fuel and is lost underground forever.');
+    else if(onSurface()&&BUILDINGS[0].c0<=podCol()&&podCol()<=BUILDINGS[0].c1){P.shopLock=null; addFloat('Out of fuel — refuel here!','#ff6b6b');}
+    else endGame(onSurface()?'Your pod ran out of fuel and is stranded on the surface, out of reach of the fuel station.':'Your pod ran out of fuel and is lost underground forever.');
   }
 }
 function endGame(reason){
@@ -324,6 +326,7 @@ function tryDig(c,r,dir){
 function finishDig(){
   const {c,r,tx,ty}=P.dig, t=getT(c,r);
   setT(c,r,T.EMPTY); P.x=tx; P.y=ty; P.state='free'; P.dig=null; P.vx=P.vy=0;
+  if(r>P.maxDepth) P.maxDepth=r;
   const ore=oreOf(t);
   if(ore){
     if(cargoWeight()+ore.weight<=lv('cargo')){P.cargo.push(t-ORE0); addFloat('+ '+ore.name,ore.color); SFX.ore();}
@@ -333,7 +336,6 @@ function finishDig(){
   } else if(t===T.GAS){
     burst(tx,ty,40,'#9cff9c',320); SFX.boom(); damage(8,'gas explosion');
   }
-  if(r>P.maxDepth) P.maxDepth=r;
   if(r>=ROWS-3&&!P.won){P.won=true; openInfo('You reached the core!',`At ${r*10} ft you have struck the Fatherload itself. There is nothing deeper. Collect your fortune and retire — or keep digging for sport.`);}
 }
 function explode(radius){
