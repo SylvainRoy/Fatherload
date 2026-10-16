@@ -890,6 +890,21 @@ window.addEventListener('keydown',e=>{
   if(e.key==='e'||e.key==='E') keys._e=true;
 });
 window.addEventListener('keyup',e=>{keys[e.key]=false;});
+// DEBUG (temporary): open the page with ?debug and press J to jump just above the Devil's lair, stocked up.
+const DEBUG=new URLSearchParams(location.search).has('debug');
+function debugJump(){
+  if(!running||gameOver) return;
+  if(modal.classList.contains('open')) closeModal();
+  const c=Math.floor((LAIR_C0+LAIR_C1)/2), r=LAIR_TOP-2;
+  for(let rr=r-1;rr<=r;rr++)for(let cc=c-1;cc<=c+1;cc++) setT(cc,rr,T.EMPTY);
+  rocks.length=0; shots.length=0;
+  P.x=(c+.5)*TILE; P.y=(r+1)*TILE-HS; P.vx=0; P.vy=0; P.state='free'; P.dig=null; P.grounded=true;
+  for(const k in P.lv) P.lv[k]=UPG[k].vals.length-1;
+  P.fuel=lv('tank'); P.hull=lv('hull'); P.inv.dyn=Math.max(P.inv.dyn,10); P.inv.c4=Math.max(P.inv.c4,10); P.inv.nano=Math.max(P.inv.nano,5); P.inv.fuel=Math.max(P.inv.fuel,5);
+  P.maxDepth=Math.max(P.maxDepth,r*10);
+  addFloat('DEBUG: jumped to the lair','#ff8');
+}
+if(DEBUG) window.addEventListener('keydown',e=>{ if(e.key==='j'||e.key==='J') debugJump(); });
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 document.querySelectorAll('#touch button').forEach(b=>{
   const k=b.dataset.k;
@@ -898,7 +913,7 @@ document.querySelectorAll('#touch button').forEach(b=>{
   b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off); b.addEventListener('pointercancel',off); b.addEventListener('pointerleave',off);
 });
 
-window.FL={get P(){return P;},get boss(){return boss;},shots,hitBoss,LAIR_TOP,getT,setT,T,ORE0,rocks,checkSupport,save:saveGame,load:loadGame,explode,useItem,openShop:id=>openShop(BUILDINGS.find(b=>b.id===id))};
+window.FL={debugJump,get P(){return P;},get boss(){return boss;},shots,hitBoss,LAIR_TOP,getT,setT,T,ORE0,rocks,checkSupport,save:saveGame,load:loadGame,explode,useItem,openShop:id=>openShop(BUILDINGS.find(b=>b.id===id))};
 buildTextures();
 openTitle();
 requestAnimationFrame(frame);
