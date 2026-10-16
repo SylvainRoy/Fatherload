@@ -359,7 +359,7 @@ function endGame(reason){
 // ---------------------------------------------------------------- falling rocks
 function checkSupport(c,r){
   if(r<0||getT(c,r)!==T.ROCK||getT(c,r+1)!==T.EMPTY) return;
-  setT(c,r,T.EMPTY); rocks.push({c,y:r*TILE,vy:0,t:0});
+  setT(c,r,T.EMPTY); rocks.push({c,y:r*TILE,y0:r*TILE,vy:0,t:0});
   checkSupport(c,r-1);
 }
 function updateRocks(dt){
@@ -370,21 +370,26 @@ function updateRocks(dt){
     const ny=k.y+k.vy*dt, rx=k.c*TILE;
     const below=rocks.find(o=>o!==k&&o.c===k.c&&o.y>k.y&&o.y<ny+TILE);
     if(below){ k.y=below.y-TILE; k.vy=0; continue; } // stacked on another falling rock
-    if(rx<P.x+HS&&rx+TILE>P.x-HS&&ny+TILE>P.y-HS&&k.y+TILE<=P.y){ // lands on the pod and rests there
+    if(rx<P.x+HS&&rx+TILE>P.x-HS&&ny+TILE>P.y-HS&&k.y+TILE<=P.y){ // lands on the pod: rests there, or shatters after a long fall
+      k.y=P.y-HS-TILE;
       if(k.vy>300){ damage(Math.ceil(k.vy/200),'falling rock'); burst(rx+16,P.y-HS,14,'#aaa',160); shake=Math.max(shake,5); beep(60,.2,'sawtooth',.08,30); }
-      k.y=P.y-HS-TILE; k.vy=0; continue;
+      if(k.y-k.y0>SHATTER_FALL){ shatterRock(k,P.y-HS); rocks.splice(i,1); continue; }
+      k.vy=0; continue;
     }
     const r=Math.floor((ny+TILE)/TILE);
     if(solid(k.c,r)){
       let land=r-1; while(land>=0&&getT(k.c,land)!==T.EMPTY) land--;
-      if(land>=0) setT(k.c,land,T.ROCK);
       rocks.splice(i,1);
+      if(land*TILE-k.y0>SHATTER_FALL){ shatterRock(k,(land+1)*TILE); continue; }
+      if(land>=0) setT(k.c,land,T.ROCK);
       if(k.vy>250){ burst(rx+16,(land+1)*TILE,10,'#999',150); beep(70,.15,'sawtooth',.06,40); if(Math.abs(P.y-land*TILE)<300) shake=Math.max(shake,3); }
       continue;
     }
     k.y=ny;
   }
 }
+const SHATTER_FALL=2*TILE; // a rock falling more than twice its size breaks apart
+function shatterRock(k,y){ const x=k.c*TILE+16; burst(x,y,26,'#9a9a9a',220); burst(x,y,12,'#666',140); beep(55,.3,'sawtooth',.1,25); if(Math.abs(P.y-y)<300) shake=Math.max(shake,6); }
 const rockAbove=(c0,c1,top)=>rocks.find(k=>k.c>=c0&&k.c<=c1&&k.t>=.25&&k.y+TILE<=top+1&&k.y+TILE>top-20);
 
 // ---------------------------------------------------------------- the Devil (end boss)

@@ -26,7 +26,7 @@ Land on a building at the surface to open it:
 - **Repair shop** — fix your hull.
 - **Upgrade shop** — drill, hull, engine, fuel tank, radiator and cargo bay, six tiers each.
 
-Underground you'll find ten minerals of increasing value and depth (Ironium → Amazonite), undrillable rock (which falls when you dig out the tile under it — it rests on your pod and dents the hull if it drops from a height), lava that burns your hull (radiators help), and gas pockets that explode. Hard landings dent the hull too.
+Underground you'll find ten minerals of increasing value and depth (Ironium → Amazonite), undrillable rock (which falls when you dig out the tile under it — it rests on your pod and dents the hull if it drops from a height, and shatters if it falls more than two tiles), lava that burns your hull (radiators help), and gas pockets that explode. Hard landings dent the hull too.
 
 The game is saved to `localStorage` every time you enter a shop; the title screen offers to continue a saved game.
 
