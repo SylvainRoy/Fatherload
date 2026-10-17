@@ -1,12 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-<defs><clipPath id="c"><rect width="64" height="64" rx="13"/></clipPath><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a4622"/><stop offset="1" stop-color="#3a1f0e"/></linearGradient></defs>
-<g clip-path="url(#c)">
-<rect width="64" height="64" fill="url(#g)"/>
-<rect width="64" height="16" fill="#2f4f8f"/><rect y="14" width="64" height="7" fill="#3f9a3f"/>
-<circle cx="11" cy="48" r="3.5" fill="#ff5252"/><circle cx="54" cy="40" r="3" fill="#ffd54a"/><circle cx="52" cy="56" r="3" fill="#5fe0ff"/><circle cx="9" cy="30" r="2.5" fill="#d0d0d0"/>
-<path d="M20 22h24l-4 24H24z" fill="#ffb300" stroke="#6a3f00" stroke-width="2.5" stroke-linejoin="round"/>
-<rect x="25" y="25" width="14" height="8" rx="2.5" fill="#c9f1ff" stroke="#2c5a6a" stroke-width="1.5"/>
-<rect x="14" y="29" width="7" height="11" rx="2" fill="#8a8a8a" stroke="#2a2a2a" stroke-width="1.5"/><rect x="43" y="29" width="7" height="11" rx="2" fill="#8a8a8a" stroke="#2a2a2a" stroke-width="1.5"/>
-<path d="M25 46h14l-7 13z" fill="#d6d6d6" stroke="#333" stroke-width="2" stroke-linejoin="round"/>
-</g>
+<rect x="2" y="26" width="12" height="18" rx="4" fill="#5a5a5a" stroke="#1a1a1a" stroke-width="3"/><rect x="50" y="26" width="12" height="18" rx="4" fill="#5a5a5a" stroke="#1a1a1a" stroke-width="3"/>
+<path d="M14 8h36l-6 38H20z" fill="#ffb800" stroke="#1a1a1a" stroke-width="4" stroke-linejoin="round"/>
+<rect x="21" y="14" width="22" height="13" rx="4" fill="#9fe8ff" stroke="#1a1a1a" stroke-width="3"/>
+<path d="M21 46h22L32 62z" fill="#dcdcdc" stroke="#1a1a1a" stroke-width="4" stroke-linejoin="round"/>
 </svg>
